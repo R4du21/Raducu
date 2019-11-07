@@ -1,0 +1,226 @@
+package com.r4dugames.loginrcov;
+
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+
+import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.net.Uri;
+import android.os.AsyncTask;
+import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.util.Log;
+import android.view.View;
+import android.view.WindowManager;
+import android.view.textservice.TextInfo;
+import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
+import android.widget.EditText;
+import android.widget.TextView;
+import android.widget.Toast;
+import android.content.SharedPreferences;
+
+import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.AdView;
+import com.google.android.gms.ads.MobileAds;
+import com.google.android.gms.ads.initialization.InitializationStatus;
+import com.google.android.gms.ads.initialization.OnInitializationCompleteListener;
+import com.google.android.gms.tasks.Task;
+import com.google.android.play.core.appupdate.AppUpdateInfo;
+import com.google.android.play.core.appupdate.AppUpdateManager;
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory;
+import com.google.android.play.core.install.model.UpdateAvailability;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.w3c.dom.Text;
+
+public class MainActivity extends AppCompatActivity  {
+
+    AdView mAdView;
+
+    private static String url = "https://raw.githubusercontent.com/R4du21/Raducu/master/paperVersion";
+    String VersionUpdate;
+
+    private EditText Name;
+    private EditText Password;
+    private TextView Info;
+    private Button Login;
+    private int counter = 3;
+    private CheckBox mCheckBoxRemember;
+    private SharedPreferences mPrefs;
+    private static final String PREFS_NAME = "PrefsFile";
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        //remember me
+        mPrefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        getPreferencesData();
+
+        MobileAds.initialize(this, new OnInitializationCompleteListener() {
+            @Override
+            public void onInitializationComplete(InitializationStatus initializationStatus) {
+            }
+        });
+
+        //ads
+        mAdView = findViewById(R.id.adView);
+        AdRequest adRequest = new AdRequest.Builder().build();
+        mAdView.loadAd(adRequest);
+
+        // sa dispara bara de notificari
+        this.getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN);
+
+        new VersionCheck().execute();
+
+
+        Name = (EditText) findViewById(R.id.loginName);
+        Password = (EditText) findViewById(R.id.loginPassword);
+        Login = (Button) findViewById(R.id.btnLogin);
+        mCheckBoxRemember = (CheckBox) findViewById(R.id.checkBoxRememberMe);
+
+
+        // citeste numele si parola introduse de utilizator si le transmite in string-ul de mai jos
+        Login.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                validate(Name.getText().toString(), Password.getText().toString());
+            }
+        });
+
+    }
+
+    //remember me 2
+    private void getPreferencesData() {
+        SharedPreferences sp = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        if (sp.contains("pref_name")) {
+            String u = sp.getString("pref_name", "not found.");
+            Name.setText(u.toString());
+        }
+        if (sp.contains("pref_pass")) {
+            String p = sp.getString("pref_pass", "not found.");
+            Password.setText(p.toString());
+        }
+        if (sp.contains("pref_check")) {
+            Boolean b = sp.getBoolean("pref_check", false);
+            mCheckBoxRemember.setChecked(b);
+        }
+    }
+
+
+    //username-ul corect si parola corecta pentru a te putea loga si scade din incercari daca este gresit
+    private void validate(String userName, String userPassword) {
+        if ((userName.equals("12D")) && (userPassword.equals("dabro"))) {
+            if (mCheckBoxRemember.isChecked()) {
+                Boolean boolIsChecked = mCheckBoxRemember.isChecked();
+                SharedPreferences.Editor editor = mPrefs.edit();
+                editor.putString("pref_name", Name.getText().toString());
+                editor.putString("pref_pass", Password.getText().toString());
+                editor.putBoolean("pref_check", boolIsChecked);
+                editor.apply();
+                Toast.makeText(this, "Setarile au fost salvate", Toast.LENGTH_SHORT).show();
+            } else {
+                mPrefs.edit().clear().apply();
+            }
+            Intent intent = new Intent(MainActivity.this, SecondActivity.class);
+            startActivity(intent);
+            Name.getText().clear();
+            Password.getText().clear();
+        }
+
+    }
+
+    private class VersionCheck extends AsyncTask<Void, Void, Void> {
+        @Override
+        protected void  onPreExecute() {
+            super.onPreExecute();
+
+
+        }
+
+        @Override
+        protected Void doInBackground(Void...arg0) {
+            HttpHandler sh = new HttpHandler();
+
+            String jsonStr = sh.makeServiceCall(url);
+            if (jsonStr != null) {
+                try {
+                    JSONObject jsonObj = new JSONObject(jsonStr);
+                    JSONArray version = jsonObj.getJSONArray("Version");
+                    for (int i = 0; i < version.length(); i++) {
+
+                        JSONObject v = version.getJSONObject(i);
+
+                        VersionUpdate = v.getString("version");
+                    }
+
+                } catch (final JSONException e){
+
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(getApplicationContext(), "Json parsing error: " + e.getMessage(), Toast.LENGTH_LONG)
+                                    .show();
+                        }
+                    });
+
+                }
+            } else {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(getApplicationContext(),
+                                "Couldn't get json from server. Check LogCat for possible errors!",
+                                Toast.LENGTH_LONG)
+                                .show();
+                    }
+                });
+            }
+
+            return null;
+        }
+
+        @Override
+        protected void onPostExecute(Void result) {
+            super.onPostExecute(result);
+
+            String VersionName = BuildConfig.VERSION_NAME;
+
+            if (VersionUpdate.equals(VersionName)) {
+
+                //Nu face nimic
+
+            }else {
+
+                AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                builder.setTitle("#RCOV Update Checker");
+                builder.setIcon(R.drawable.rcovvv);
+                builder.setCancelable(false);
+                builder.setMessage("Versiune noua disponibila, apasa pe Update pentru a continua.")
+                        .setPositiveButton("Update", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+
+                                final String appName = getPackageName();
+
+                                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" +appName) ));
+                            }
+                        });
+
+                AlertDialog alert = builder.create();
+                alert.show();
+            }
+        }
+
+    }
+
+    
+}
